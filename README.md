@@ -1801,5 +1801,234 @@ $border-color: #c2c6ca;
 }
 </style>
 ```
-
 ---
+
+## **STEP 6** - *Criação e listagem das mensagens*
+
+Vamos atualizar o nosso `MessageForm.vue`
+```html
+<template>
+  <div class="message-form d-flex align-items-center bg-light">
+    <!-- Adicionado v-model -->
+    <!-- Adicionado listener usando modificador prevent para evitar que quebre a linha -->
+    <!-- Adicionada referência no textarea para permitir setar o foco novamente no campo -->
+    <textarea
+      placeholder="Digite aqui sua mensagem"
+      class="bg-light"
+      v-model.trim="message"
+      @keydown.enter.prevent="sendMessage"
+      ref="textarea"
+    />
+    <!-- Listener para enviar mensagem -->
+    <button @click="sendMessage" class="btn btn-sm btn-orange border-left">
+      <i class="material-icons">message</i>
+    </button>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'MessageForm',
+  data () {
+    return {
+      message: ''
+    }
+  },
+  computed: {
+    currentUser () {
+      return this.$store.getters.currentUser
+    },
+    currentChannel () {
+      return this.$store.getters.currentChannel
+    }
+  },
+  methods: {
+    // Método para enviar mensagem
+    sendMessage () {
+      if (!this.message) return
+      window.firebase.firestore()
+        .collection('messages')
+        .doc(this.currentChannel)
+        .collection('messages')
+        .add({
+          content: this.message,
+          timestamp: window.firebase.firestore.FieldValue.serverTimestamp(),
+          user: {
+            name: this.currentUser.displayName,
+            id: this.currentUser.uid
+          }
+        })
+        .then(() => {
+          this.message = ''
+          this.$nextTick(() => {
+            // Seta o foco no campo
+            this.$refs.textarea.focus()
+          })
+        })
+    }
+  }
+}
+</script>
+
+<style lang="scss">
+.message-form {
+  background-color: #fff;
+  border-top: 1px solid #c2c6ca;
+  height: 50px;
+
+  textarea {
+    padding: 0.70rem 1rem;
+    height: 46px;
+    width: calc(100% - 50px) ;
+    border: 0;
+    resize: none;
+    border-radius: 0;
+
+    &::placeholder {
+      font-style: italic;
+      font-size: 15px;
+    }
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  button {
+    width: 50px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+
+    &:focus {
+      box-shadow: none !important;
+    }
+  }
+}
+</style>
+```
+
+No arquivo `Chat.vue` nós vamos:
+
+Adicionar uma referência na div onde são listadas as mensagens
+```html
+<div class="channel-messages flex-grow-1 p-2" ref="channelMessages">
+```
+
+Adicionar 3 propriedades novas ao objeto data
+```
+loadingMessages: false,
+messages: [],
+messageListener: () => {}
+```
+
+Criar o método para carregar as mensagens do canal
+```javascript
+    loadMessages () {
+      if (!this.currentChannel) return
+      this.loadingMessages = true
+      this.messageListener = window.firebase.firestore()
+        .collection('messages')
+        .doc(this.currentChannel)
+        .collection('messages')
+        .orderBy('timestamp', 'asc')
+        .onSnapshot((querySnapshot) => {
+          this.messages = querySnapshot.docs.map((doc) => {
+            return {
+              id: doc.id,
+              ...doc.data()
+            }
+          })
+          this.loadingMessages = false
+          this.$nextTick(() => {
+            const animationDuration = 300
+            setTimeout(() => {
+              this.$refs.channelMessages.scrollTop = this.$refs.channelMessages.scrollHeight
+            }, animationDuration)
+          })
+        })
+    }
+```
+
+Adicionar um watch na propriedade currentChannel
+```javascript
+  watch: {
+    currentChannel: {
+      handler (currentChannel) {
+        // Encerra conexão com o listener das mensagens do canal anterior
+        this.messageListener()
+        // Carrega as novas mensagens
+        this.loadMessages()
+      },
+      immediate: true
+    }
+  }
+```
+
+Vamos adicionar novamente as mensagens à aplicação
+```html
+      <div class="channel-messages flex-grow-1 p-2" ref="channelMessages">
+        <transition name="fade" mode="out-in">
+          <transition-group name="fade" v-if="messages.length">
+            <message
+              v-for="message in messages"
+              :message="message"
+              :key="`message-${message.id}`"
+              :current-user="currentUser"
+            />
+          </transition-group>
+          <div key="no-records" v-else-if="!loadingMessages" class="alert alert-secondary font-italic">Nenhuma mensagem cadastrada até o momento</div>
+          <div key="loading-records" class="text-center" v-else>
+            <loader/>
+          </div>
+        </transition>
+      </div>
+```
+Adicione novamente o import do componente
+```js
+import Message from '@/components/Message'
+```
+E a referência para ele
+```js
+  components: {
+    AddChannel,
+    Channel,
+    Loader,
+    MessageForm,
+    Message
+  },
+```
+## Feito isso as mensagens já podem ser enviadas e já estarão sendo listadas conforme o canal!! :D
+
+Agora para melhorar a visualização vamos criar um filtro para formatação da data de criação das mensagens.
+
+Vamos utilizar uma biblioteca chamada moment para isso.
+
+na pasta do projeto digite:
+```
+npm i --save moment
+```
+
+no arquivo `main.js` importe a biblioteca
+```javascript
+import moment from 'moment'
+```
+
+e crie um filtro
+```javascript
+moment.locale('pt-br')
+Vue.filter('timeAgo', (date) => {
+  if (date && 'seconds' in date) {
+    return moment.unix(date.seconds).fromNow()
+  }
+})
+```
+
+Por fim no arquivo `Message.vue` altere a linha onde é exibido o timestamp para aplicar o filtro
+```
+{{ props.message.timestamp | timeAgo }}:
+```
+---
+
