@@ -921,3 +921,441 @@ SUBSTITUA a div com a classe `message-form` pelo seu componente
 <message-form />
 ```
 ---
+## **STEP 4** - *Configuração do Firebase*
+
+Nesta etapa vamos criar o nosso projeto no firebase, configurar a aplicação e criar a autenticação com o firebase.
+
+Para começar vamos acessar o [firebase console](https://console.firebase.google.com/)
+`https://console.firebase.google.com/`
+
+Se ainda não possuir acesso crie uma conta com sua conta do google, o firebase possui um plano gratuito que é mais do que suficiente para nossos testes.
+
+Ok, com a conta criada:
+ * clique em Adicionar projeto.
+ * Insira o nome do seu projeto e clique em Continuar
+ * Neste segundo passo sobre o Google Analytics escolha "Agora não" e clique em criar projeto.
+
+Após alguns segundos seu projeto será criado.
+
+### Vamos habilitar a autenticação
+Clique em continuar e na barra no lado esquerdo clique em **Authentication**, em seguida clique em **Configurar método de login**, na lista que irá abrir passe o mouse por cima da opção `Email/Senha` e clique no ícone em formato de lápis para editar. Ative o primeiro item e clique em Salvar. 
+
+Isso nos permitirá utilizar os métodos do firebase para registro de novos usuários e login.
+
+### Agora vamos criar o banco de dados da nossa aplicação.
+Na barra lateral clique em Database, a primeira opção disponível deve ser o Cloud Firestore, clique em **Criar banco de dados**, na janela que irá abrir deixe a opção selecionada, clique em **Próxima**, e na próxima tela em **Concluído**.
+
+
+Na tela que irá abrir clique na aba Regras, nesta tela estão as regras de acesso ao banco de dados.
+Substitua o texto exibido pelo texto abaixo e clique em Publicar
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth.uid != null;
+    }
+  }
+}
+```
+Esta configuração tornará o banco de dados visível apenas para usuários logados!
+
+### Canal padrão do chat
+
+Para nosso exemplo teremos um canal padrão chamado **todos**, vamos criá-lo no firebase
+volte na aba **Dados** e clique em **Iniciar Coleção**
+
+Código da coleção:
+```
+channels
+```
+
+Clique em `Próxima` e preencha com os dados abaixo depois clique em **Salvar**
+* Código do documento: todos
+ * Campos:
+
+| Campo     | Tipo      | Valor      |
+|-----------|-----------|------------|
+| archived  | boolean   | false      |
+| createdAt | timestamp | Data Atual |
+| name      | string    | todos      |
+
+### Agora vamos adicionar o firebase na nossa aplicação
+
+Na pasta do projeto digite:
+```
+npm install --save firebase
+```
+
+Agora no nosso projeto do firebase vamos criar um `app` e pegar as configurações de acesso ao projeto, clicando em `Project Overview`, em seguida no ícone para criar um novo projeto `Web`, escolha o nome do app e clique em `Adicionar`.
+
+Dentro da pasta `src` crie uma pasta `config` que irá conter a configuração do firebase, nela crie um arquivo chamado `index.js` com o conteúdo abaixo porém o valor de cada uma das chaves é o valor que consta no objeto `firebaseConfig` que está sendo exibido na tela de criação do projeto.
+```
+export default {
+  apiKey: '',
+  authDomain: '',
+  databaseURL: '',
+  projectId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: ''
+}
+```
+
+Feito isto vamos alterar o arquivo `main.js` para conectar ao firebase e verificar se o usuário está logado.
+
+Adicione no fim da lista dos imports do `main.js`:
+```javascript
+import firebase from 'firebase' // Importa o firebase instalado com npm
+import config from './config' // Importa o objeto de configuração
+
+firebase.initializeApp(config) // Inicializa o firebase com a configuração definida no arquivo
+window.firebase = firebase
+```
+
+Ainda no `main.js` vamos adicionar um listener para quando o usuário fazer login / logout 
+```javascript
+firebase.auth().onAuthStateChanged(user => { // Verifica se o Usuário está logado
+  store.dispatch('setCurrentUser', user) // Adiciona o usuário logado na store
+  /* eslint-disable no-new */
+  // Renderiza a aplicação
+  new Vue({
+    router,
+    store,
+    render: h => h(App)
+  }).$mount('#app')
+})
+```
+
+### Vamos atualizar nossa store para armazenar os dados do usuário logado
+`store.js`
+```javascript
+import Vue from 'vue'
+import Vuex from 'vuex'
+
+Vue.use(Vuex)
+
+export default new Vuex.Store({
+  // Estado da aplicação contém os dados que podem ser facilmente acessados por todos os componentes
+  state: {
+    currentUser: null
+  },
+  // Servem para retornar / filtrar os dados armazenados no state
+  getters: {
+    currentUser: (state) => state.currentUser
+  },
+  // Servem para armazenar / alterar dados na store as mutations devem ser síncronas
+  // Recebem como primeiro parâmetro o state e por segundo o payload enviado pela action
+  mutations: {
+    SET_CURRENT_USER: (state, user) => (state.currentUser = user)
+  },
+  // As actions são semelhantes às mutações, as diferenças são as seguintes:
+  // Em vez de mudar o estado, as actions confirmam (ou fazem commit de) mutações.
+  // As actions podem conter operações assíncronas arbitrárias.
+  actions: {
+    setCurrentUser: ({ commit }, user) => commit('SET_CURRENT_USER', user)
+  }
+})
+```
+
+### Vamos alterar também o `router.js` para validar se o usuário está logado antes de acessar a rota
+```javascript
+// Redireciona o usuário para o chat caso o usuário já esteja logado
+const redirectToChat = (to, from, next) => window.firebase.auth().currentUser ? next('/') : next()
+// Redireciona o usuário para o login se o usuário não estiver logado
+const redirectToLogin = (to, from, next) => !window.firebase.auth().currentUser ? next('/login') : next()
+
+export default new Router({
+  mode: 'history',
+  base: process.env.BASE_URL,
+  routes: [
+    {
+      name: 'login',
+      path: '/login',
+      component: Login,
+      beforeEnter: redirectToChat
+    },
+    {
+      name: 'register',
+      path: '/register',
+      component: Register,
+      beforeEnter: redirectToChat
+    },
+    {
+      name: 'chat',
+      path: '/',
+      component: Chat,
+      beforeEnter: redirectToLogin
+    },
+    {
+      path: '*',
+      redirect: '/'
+    }
+  ]
+})
+```
+
+### Agora vamos fazer o formulário de registro de novo usuário funcionar
+
+1) Vamos adicionar ao script as váriaveis reativas que iremos utilizar
+`Register.vue`
+```javascript
+  data () {
+    return {
+      // Variáveis para armazenar os dados do formulário
+      name: '',
+      email: '',
+      password: '',
+      passwordConfirm: '',
+      // Variável para armazenar possíveis erros
+      errors: [],
+      // Variável booleana para saber quando o formulário está sendo salvo
+      isSaving: false,
+      // Referência para a coleção de usuários salva no firebase
+      usersRef: window.firebase.firestore().collection('users')
+    }
+  },
+```
+2) Adicionar os métodos para fazer o registro do usuário
+```javascript
+  methods: {
+    isFormValid () {
+      // Verificação se os dados estão preenchidos
+      const hasEmptyFields = ['name', 'email', 'password', 'passwordConfirm'].some(field => this[field].length === 0)
+      if (hasEmptyFields) {
+        this.errors.push('Todos os campos são obrigatórios')
+        return false
+      }
+
+      // Verificação se a senha bate com a confirmação de senha
+      if (this.password !== this.passwordConfirm) {
+        this.errors.push('Senha e confirmação são diferentes')
+        return false
+      }
+
+      return true
+    },
+    register () {
+      // Limpa o array de erros para evitar registros duplicados
+      this.errors = []
+      // Verifica se está salvando e se o formulário é valido
+      if (this.isSaving || !this.isFormValid()) return
+      // Define que o formulário está sendo salvo para evitar envio em duplicidade
+      this.isSaving = true
+      // Utiliza o método fornecido pelo firebase para criação de um usuário a partir de e-mail e senha
+      window.firebase.auth()
+        .createUserWithEmailAndPassword(this.email, this.password)
+        .then(({ user }) => {
+          // Atualiza o nome do usuário salvo com o nome digitado no formulário de registro
+          user
+            .updateProfile({
+              displayName: this.name
+            })
+            .then(() => {
+              // Salva ele no banco de dados do firestore
+              this.usersRef.doc(user.uid)
+                .set({
+                  id: user.uid,
+                  email: user.email,
+                  name: user.displayName
+                })
+                .then(() => {
+                  this.$store.dispatch('setCurrentUser', user)
+                  this.$router.push('/')
+                })
+            })
+            .catch(error => {
+              this.errors.push(error.message)
+            })
+            .finally(() => (this.isSaving = false))
+        })
+        .catch(error => {
+          this.errors.push(error.message)
+        })
+        .finally(() => (this.isSaving = false))
+    }
+  }
+```
+3) Adicionar v-model no input do nome do usuário
+> `v-model` é uma diretiva do view que nos fornece o chamado `two way data-binding` isso quer dizer que tudo que o usuário digitar no campo será armazenado na variável vinculada e o que for alterado na variável via código será refletido no campo!
+```html
+                <input
+                  type="text"
+                  id="name"
+                  class="form-control"
+                  placeholder="Seu nome"
+                  v-model.trim="name"
+                >
+```
+4) Adicionar v-model no input do email
+```html
+                <input
+                  type="email"
+                  id="email"
+                  class="form-control"
+                  placeholder="Seu email"
+                  v-model.trim="email"
+                >
+```
+5) Adicionar v-model no input da senha
+```html
+                <input
+                  type="password"
+                  id="password"
+                  class="form-control"
+                  placeholder="Senha"
+                  v-model.trim="password"
+                >
+```
+6) Adicionar v-model no input da confirmação de senha.
+E adicionar o listener para o evento keyup usando o modificador `enter` para executar o método de registro ao teclar enter.
+```html
+                <input
+                  type="password"
+                  class="form-control"
+                  id="password-confirm"
+                  placeholder="Confirmação de senha"
+                  v-model.trim="passwordConfirm"
+                  @keyup.enter="register"
+                >
+```
+7) Adicionar listener para o evento click do botão. E alterar o atributo `disabled` enquanto estiver salvando.
+```html
+              <button
+                type="button"
+                class="btn btn-orange btn-block"
+                :disabled="isSaving"
+                @click="register"
+              >Cadastrar</button>
+```
+8) Adicionar a exibição dos erros antes da div que possui o link para o login
+> A diretiva v-if serve para adicionar ou remover elementos do DOM baseado no booleano fornecido
+```html
+        <div class="mt-2 alert alert-danger" v-if="errors.length">
+          <div v-for="(error, index) in errors" :key="`error-${index}`"> * {{error}} </div>
+        </div>
+```
+
+## Cadastro Realizado!! Usuário Logado no chat!
+
+Vamos alterar agora o arquivo `Chat.vue` para buscar o usuário armazenado na store removendo do objeto data a propriedade `currentUser` e adicionando um bloco de computeds abaixo do data.
+
+```javascript
+  data () {
+    return {
+      messages: []
+    }
+  },
+  computed: {
+    currentUser () {
+      return this.$store.getters.currentUser
+    }
+  },
+```
+
+Ainda no arquivo `Chat.vue` vamos adicionar um método para o logout abaixo do bloco `computed`
+
+```javascript
+  methods: {
+    logout () {
+      window.firebase.auth().signOut()
+        .then(() => {
+          this.$store.dispatch('setCurrentUser', null)
+          this.$router.push('/login')
+        })
+        .catch(error => {
+          console.error(error.message)
+        })
+    }
+  },
+```
+
+Adicionar um listener para o evento `click` no **botão de sair**
+
+```html
+<button class="btn btn-sm btn-link ml-auto" @click="logout"><i class="material-icons">exit_to_app</i></button>
+```
+
+E uma verificação para o usuário logado na div principal do chat
+```html
+<div class="container-fluid h-100 p-0 d-flex" v-if="currentUser">
+```
+
+## Clique no botão de sair para fazer o logout!
+
+### Agora que já efetuamos o cadastro e o logout precisamos fazer o Login! Para podermos acessar novamente a aplicação :D
+
+`Login.vue`
+1) Vamos começar adicionando as variáveis para o formulário e os métodos para o login
+```javascript
+  data () {
+    return {
+      email: '',
+      password: '',
+      errors: [],
+      isLoading: false,
+    }
+  },
+  methods: {
+    login () {
+      this.errors = []
+      if (this.isLoading || !this.isFormValid()) return
+      this.isLoading = true
+      window.firebase.auth()
+        .signInWithEmailAndPassword(this.email, this.password)
+        .then(user => {
+          this.$store.dispatch('setCurrentUser', user)
+          this.$router.push('/')
+        })
+        .catch(error => {
+          this.errors.push(error.message)
+          this.isLoading = false
+        })
+    },
+    isFormValid () {
+      if (!this.email.length || !this.password.length) {
+        this.errors.push('Todos os campos são obrigatórios')
+        return false
+      }
+      return true
+    }
+  }
+```
+2) Adicionar v-model no campo de e-mail
+```html
+                <input
+                  type="email"
+                  id="email"
+                  class="form-control"
+                  placeholder="Seu email"
+                  v-model.trim="email"
+                >
+```
+3) Adicionar v-model e listener no evento keyup novamente utilizando o modifier `enter` para executar o método de login ao teclar enter
+```html
+                <input
+                  type="password"
+                  id="password"
+                  class="form-control"
+                  placeholder="Senha"
+                  v-model.trim="password"
+                  @keyup.enter="login"
+                >
+```
+4) Adicionar listener para o evento click e executar o método de login e desabilitar enquanto está carregando
+```html
+              <button
+                type="button"
+                class="btn btn-orange btn-block"
+                :disabled="isLoading"
+                @click="login"
+              >Acessar</button>
+```
+5) Adicionar a exibição das mensagens de erro
+```html
+        <div class="mt-2 alert alert-danger" v-if="errors.length">
+          <div v-for="(error, index) in errors" :key="`error-${index}`"> {{error}}</div>
+        </div>
+```
+
+### Ok, Registro, logout e login criados utilizando o Firebase!!
