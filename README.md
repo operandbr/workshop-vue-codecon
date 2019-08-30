@@ -2031,4 +2031,72 @@ Por fim no arquivo `Message.vue` altere a linha onde é exibido o timestamp para
 {{ props.message.timestamp | timeAgo }}:
 ```
 ---
+## **STEP 7** - *Deploy no Firebase*
 
+O firebase também oferece um serviço de hospedagem para sua aplicação. Para fazermos isso vamos instalar o `firebase-tools`
+```
+sudo npm install -g firebase-tools
+```
+
+Para verificar a versão instalada digite:
+```
+firebase --version
+```
+
+Agora acesse a pasta do projeto e digite o comando:
+```
+firebase login
+```
+uma janela irá se abrir no browser pedindo para fazer login na sua conta do google, após o login a operação continuará no console!
+
+Em seguida:
+```
+firebase init
+```
+* Navegue pelas opções com as setas do teclado e selecione a opção `Hosting` usando a barra de espaço. Em seguida tecle `Enter`
+* Para a próxima pergunta selecione `Use an existing project`
+* Depois selecione o seu projeto do firebase na lista que irá aparecer
+* Agora digite `dist` para utilizar como pasta pública (A pasta que irá ser enviada ao servidor do firebase)
+* Configure as a single-page app: y
+
+Agora que tudo está configurado, para deixar a nossa aplicação online basta digitar o comando abaixo na pasta do projeto
+```
+npm run build && firebase deploy
+```
+
+Para ver o resultado basta acessar a URl disponível em `Hosting URL`
+
+Para facilitar o desenvolvimento / deploy da aplicação pode ser criado um script no arquivo package.json que rode os dois comandos em sequência. Basta trocar o bloco de `scripts` por:
+```js
+"scripts": {
+  "serve": "vue-cli-service serve",
+  "build": "vue-cli-service build",
+  "lint": "vue-cli-service lint",
+  "firebase-deploy": "npm run build && firebase deploy"
+},
+```
+
+Após a alteração basta rodar
+```
+npm run firebase-deploy
+```
+
+---
+
+Links Úteis:
+
+[Documentação Vue.js](https://vuejs.org/v2/guide/)
+
+[vue-dev-tools github](https://github.com/vuejs/vue-devtools)
+
+[vue-devtools extensão chrome](https://chrome.google.com/webstore/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
+
+[JSFiddle - Exemplos Sintaxe Vue](https://jsfiddle.net/duduschroder/n6vof15t/58/)
+
+[Documentação Vuex](https://vuex.vuejs.org/)
+
+[Documentação Vue Cli](https://cli.vuejs.org/)
+
+[Documentação Vue Router](https://router.vuejs.org/)
+
+[Documentação Firebase](https://firebase.google.com/docs?hl=pt-br)
