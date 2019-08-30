@@ -196,3 +196,281 @@ E substitua o array `routes` por:
 ## Feito isso já conseguiremos visualizar nossos componentes acessando suas rotas
 
 ---
+---
+## **STEP 2** - *Instalação bootstrap, criação layout*
+
+Para o nosso projeto vamos utilizar o [Bootstrap 4](https://getbootstrap.com/) para facilitar o processo de criação do layout. Utilizaremos também os ícones do material.
+
+Na pasta do projeto digite:
+```
+npm i bootstrap-css-only --save
+```
+
+No arquivo `main.js` adicione o import do arquivo do bootstrap abaixo dos imports já existentes
+```
+import 'bootstrap-css-only/css/bootstrap.min.css'
+```
+
+### Ok, Bootstrap instalado com sucesso vamos aos ícones
+
+No arquivo `public/index.html` logo abaixo de:
+```html
+<link rel="icon" href="<%= BASE_URL %>favicon.ico">
+```
+Adicione a tag para o css dos ícones.
+```html
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+```
+> O arquivo `index.html` na pasta `public` é o arquivo onde todo os nossos códigos serão renderizados
+
+### Agora vamos ao layout!
+
+`App.vue` : Logo abaixo do template vamos adiconar este bloco de estilo
+```html
+<style lang="scss">
+@import url('https://fonts.googleapis.com/css?family=Open+Sans|Satisfy|Source+Code+Pro&display=swap');
+
+html, body, #app {
+  height: 100%;
+}
+
+* {
+  font-family: 'Open Sans', sans-serif;
+}
+
+pre {
+  font-family: 'Source Code Pro', monospace !important;
+}
+
+$orange: #fe8e2a;
+
+.form-control:focus {
+    border-color: $orange !important;
+    box-shadow: 0 0 0 0.2rem rgba($orange, .25) !important;
+}
+
+.btn.focus, .btn:focus {
+    box-shadow: 0 0 0 0.2rem rgba($orange, .25) !important;
+}
+
+.text-cursive {
+  font-family: 'Satisfy', cursive;
+}
+
+.text-30 {
+  font-size: 30px;
+}
+
+.btn-link {
+  color: $orange !important;
+}
+
+.btn-orange {
+  background-color: $orange !important;
+  color: #fff !important;
+}
+
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar:horizontal {
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    box-shadow: none;
+    background-color: rgba(#f5f5f5, .5);
+    border-radius: 12px;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 12px;
+    background-color: rgba(#ccc, .5);
+    &:hover {
+        background-color: rgba(#ccc, .9);
+    }
+}
+</style>
+```
+
+## Nos arquivos `Login.vue Register.vue Chat.vue` a seguir estão o layout estático da aplicação
+
+`Login.vue`
+```html
+<template>
+  <div class="d-flex flex-column justify-content-center align-items-center h-100 bg-light">
+    <div class="row w-100">
+      <div class="col col-sm-12 col-md-4 offset-md-4">
+        <div class="col text-center text-cursive text-30 pb-2">
+          WorkshopVue
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <form>
+              <div class="form-group">
+                <label for="email">Endereço de email</label>
+                <input type="email" id="email" class="form-control" placeholder="Seu email">
+              </div>
+              <div class="form-group">
+                <label for="password">Senha</label>
+                <input type="password" id="password" class="form-control" placeholder="Senha">
+              </div>
+              <button type="button" class="btn btn-orange btn-block" >Acessar</button>
+            </form>
+          </div>
+        </div>
+        <div class="mt-2 text-center">
+        <!-- router-link componente para navegação entre as rotas do vue-router -->
+          Não possui uma conta? <router-link to="/register">Cadastre-se aqui</router-link>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'Login'
+}
+</script>
+```
+
+`Register.vue`
+```html
+<template>
+  <div class="d-flex flex-column justify-content-center align-items-center h-100 bg-light">
+    <div class="row w-100">
+      <div class="col col-sm-12 col-md-4 offset-md-4">
+        <div class="col text-center text-cursive text-30 pb-2">
+          WorkshopVue
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <form>
+              <div class="form-group">
+                <label for="name">Nome</label>
+                <input type="text" id="name" class="form-control" placeholder="Seu nome">
+              </div>
+              <div class="form-group">
+                <label for="email">Endereço de email</label>
+                <input type="email" id="email" class="form-control" placeholder="Seu email">
+              </div>
+              <div class="form-group">
+                <label for="password">Senha</label>
+                <input type="password" id="password" class="form-control" placeholder="Senha">
+              </div>
+              <div class="form-group">
+                <label for="password-confirm">Confirmação de Senha</label>
+                <input type="password" class="form-control" id="password-confirm" placeholder="Confirmação de senha">
+              </div>
+              <button type="button" class="btn btn-orange btn-block" >Cadastrar</button>
+            </form>
+          </div>
+        </div>
+        <div class="mt-2 text-center">
+          Já possui uma conta? <router-link to="/login">Faça login</router-link>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'Register'
+}
+</script>
+```
+
+`Chat.vue`
+```html
+<template>
+  <div class="container-fluid h-100 p-0 d-flex">
+    <!-- Sidebar -->
+    <div class="w-25 sidebar">
+      <!-- Current User -->
+      <div class="current-user bg-light d-flex align-items-center flex-nowrap p-2">
+      </div>
+
+      <!-- Channels List -->
+      <div class="channels-list bg-light p-2">
+      </div>
+    </div>
+
+    <!-- Channel Area -->
+    <div class="d-flex flex-column w-75">
+      <!-- Channel Header -->
+      <div class="channel-header bg-light p-2 d-flex align-items-center">
+      </div>
+      <!-- Channel Messages -->
+      <div class="channel-messages flex-grow-1 p-2" ref="channelMessages">
+      </div>
+      <!-- Message Form -->
+      <div style="height: 50px;" class="message-form border-top d-flex align-items-center">
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'Chat'
+}
+</script>
+
+<style lang="scss">
+$border-color: #c2c6ca;
+.sidebar {
+  border-right: 1px solid $border-color;
+}
+
+.current-user {
+  height: 75px;
+  font-size: 1.25rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.channels-list {
+  height: calc(100% - 75px);
+  overflow-y: auto;
+}
+
+.channel-header {
+  height: 75px;
+  font-size: 1.25rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.channel-messages {
+  height: calc(100% - 125px);
+  overflow-y: auto;
+}
+
+.fade-enter-active {
+    animation: fade-in 300ms ease-out forwards;
+}
+
+.fade-leave-active {
+    animation: fade-out 300ms ease-out forwards;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+</style>
+```
