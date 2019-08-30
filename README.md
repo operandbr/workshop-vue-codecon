@@ -1359,3 +1359,447 @@ E uma verificação para o usuário logado na div principal do chat
 ```
 
 ### Ok, Registro, logout e login criados utilizando o Firebase!!
+
+## **STEP 5** - *Criação dos canais*
+
+Vamos alterar o `AddChannel.vue` para adicionar os canais no firebase
+
+* Vamos adicionar o `v-model` para atualizar a variável com o nome
+* Um listener @keyup.enter
+* Um listener @keyup.esc
+* Um listener para o keyup.space adicionando um terceiro modificador chamado prevent que irá executar o método preventDefault() do evento disparado evitando assim que o espaço seja inserido no campo
+```html
+      #<input
+        maxlength="32"
+        type="text"
+        class="new-channel ml-1"
+        ref="addChannelInput"
+        v-model.trim="name"
+        @keyup.enter="addChannel"
+        @keyup.esc="toggleAddChannel"
+        @keydown.space.prevent
+      />
+```
+
+Vamos adicionar o método `addChannel` no bloco de métodos
+```javascript
+    addChannel () {
+      if (!this.name || this.name === 'todos') return
+      window.firebase.firestore().collection('channels').doc(this.name)
+        .set({
+          name: this.name,
+          archived: false,
+          createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
+        })
+        .then(() => {
+          this.name = ''
+          this.isAdding = false
+        })
+        .catch(error => console.error(error))
+    }
+```
+
+### Feito isto os canais estão sendo armazenados no firebase, agora precisamos listar eles na aplicação
+
+Vamos alterar o arquivo abaixo para listar os canais armazenados no firebase
+
+`Chat.vue`
+```html
+<template>
+  <div class="container-fluid h-100 p-0 d-flex" v-if="currentUser">
+    <!-- Sidebar -->
+    <div class="w-25 sidebar">
+      <!-- Current User -->
+      <div class="current-user bg-light d-flex align-items-center flex-nowrap p-2">
+        <avatar :name="currentUser.displayName"/>
+        <div class="ml-2 text-truncate">{{currentUser.displayName}}</div>
+        <button class="btn btn-sm btn-link ml-auto" @click="logout"><i class="material-icons">exit_to_app</i></button>
+      </div>
+
+      <div class="channels-list bg-light p-2">
+        <add-channel/>
+        <!-- Lista de canais -->
+        <channel
+          v-for="(channel, index) in channels"
+          :key="`channel-${index}`"
+          :name="channel"
+        />
+      </div>
+    </div>
+
+    <div class="d-flex flex-column w-75">
+      <div class="channel-header bg-light p-2 d-flex align-items-center">
+        #todos
+      </div>
+      <div class="channel-messages flex-grow-1 p-2" ref="channelMessages">
+        <loader/>
+      </div>
+      <message-form />
+    </div>
+  </div>
+</template>
+
+<script>
+import AddChannel from '@/components/AddChannel'
+import Channel from '@/components/Channel'
+import Loader from '@/components/Loader'
+import MessageForm from '@/components/MessageForm'
+
+export default {
+  name: 'Chat',
+  components: {
+    AddChannel,
+    Channel,
+    Loader,
+    MessageForm
+  },
+  data () {
+    // 1) Criação das variáveis para os canais
+    return {
+      channelsListRef: window.firebase.firestore().collection('channels'),
+      channelListener: () => {},
+      channels: []
+    }
+  },
+  computed: {
+    currentUser () {
+      return this.$store.getters.currentUser
+    }
+  },
+  methods: {
+    logout () {
+      window.firebase.auth().signOut()
+        .then(() => {
+          // Remove o listener antes de fazer logout
+          this.channelListener()
+          this.$store.dispatch('setCurrentUser', null)
+          this.$router.push('/login')
+        })
+        .catch(error => {
+          console.error(error.message)
+        })
+    }
+  },
+  created () {
+    // Define o um listener para quando os canais forem alterados atualize os canais da aplicação
+    this.channelListener = this.channelsListRef
+      .where('archived', '==', false)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot((querySnapshot) => {
+        this.channels = querySnapshot.docs.map(doc => doc.id)
+      })
+  }
+}
+</script>
+
+<style lang="scss">
+$border-color: #c2c6ca;
+.sidebar {
+  border-right: 1px solid $border-color;
+}
+
+.current-user {
+  height: 75px;
+  font-size: 1.25rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.channels-list {
+  height: calc(100% - 75px);
+  overflow-y: auto;
+}
+
+.channel-header {
+  height: 75px;
+  font-size: 1.25rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.channel-messages {
+  height: calc(100% - 125px);
+  overflow-y: auto;
+}
+
+.fade-enter-active {
+    animation: fade-in 300ms ease-out forwards;
+}
+
+.fade-leave-active {
+    animation: fade-out 300ms ease-out forwards;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+</style>
+```
+
+Um erro irá aparecer no console clique no link que levará ao seu projeto do firebase e irá abrir uma tela para criação de um índice. clique em Criar Índice.
+Após alguns minutos seu índice será criado. esse índice é necessário para aplicar o filtro dos canais arquivados que adicionamos no trecho de código abaixo:
+```js
+this.channelListener = this.channelsListRef
+  .where('archived', '==', false)
+  .orderBy('createdAt', 'desc')
+  .onSnapshot((querySnapshot) => {
+    this.channels = querySnapshot.docs.map(doc => doc.id)
+  })
+```
+
+Agora vamos atualizar o componente de canais para:
+1) emitir os eventos para trocar de canal e arquivar o canal
+2) aplicar a classe is-active quando necessário
+
+`Channel.vue`
+```html
+<template functional>
+  <!-- Adicionada verificação para adicionar classe -->
+  <div class="d-flex channel rounded p-1 mb-1" :class="{'is-active': props.isActive}">
+    <!-- no evento click emite o evento activate -->
+    <div class="w-100" @click="listeners.activate(props.name)">#{{props.name}}</div>
+    <!-- Se o canal não for o todos aparece o botão -->
+    <!-- Ao clicar no botão emite um evento archive -->
+    <button
+      v-if="props.name !== 'todos'"
+      @click="listeners.archive(props.name)"
+      title="Arquivar"
+      type="button"
+      class="ml-auto d-flex align-items-center btn btn-link btn-sm p-0"
+    >
+      <i class="material-icons">archive</i>
+    </button>
+  </div>
+</template>
+
+<style lang="scss">
+$border-color: #c2c6ca;
+.channel {
+  border: 1px solid $border-color;
+  align-items: center;
+  cursor: pointer;
+
+  &.is-active {
+    background-color: #fff;
+    border-color: #fe8e2a;
+  }
+
+  &:not(.is-active):hover {
+    background-color: #f1f1f1;
+  }
+}
+</style>
+```
+
+Na Store vamos adicionar as actions, mutations e getters referente ao canal
+```javascript
+import Vue from 'vue'
+import Vuex from 'vuex'
+
+Vue.use(Vuex)
+
+export default new Vuex.Store({
+  state: {
+    currentUser: null,
+    currentChannel: null
+  },
+  getters: {
+    currentUser: (state) => state.currentUser,
+    currentChannel: (state) => state.currentChannel
+  },
+  mutations: {
+    SET_CURRENT_USER: (state, user) => (state.currentUser = user),
+    SET_CURRENT_CHANNEL: (state, channel) => (state.currentChannel = channel)
+  },
+  actions: {
+    setCurrentUser: ({ commit }, user) => commit('SET_CURRENT_USER', user),
+    setCurrentChannel: ({ commit }, channel) => commit('SET_CURRENT_CHANNEL', channel)
+  }
+})
+```
+### Agora vamos alterar o `Chat.vue` para executar as ações de arquivar e definir o canal ativo
+
+`Chat.vue`
+```html
+<template>
+  <div class="container-fluid h-100 p-0 d-flex" v-if="currentUser">
+    <!-- Sidebar -->
+    <div class="w-25 sidebar">
+      <!-- Current User -->
+      <div class="current-user bg-light d-flex align-items-center flex-nowrap p-2">
+        <avatar :name="currentUser.displayName"/>
+        <div class="ml-2 text-truncate">{{currentUser.displayName}}</div>
+        <button class="btn btn-sm btn-link ml-auto" @click="logout"><i class="material-icons">exit_to_app</i></button>
+      </div>
+
+      <div class="channels-list bg-light p-2">
+        <add-channel/>
+        <!-- adicionada prop is-active -->
+        <!-- adicionados listeners activate e archive -->
+        <channel
+          v-for="(channel, index) in channels"
+          :key="`channel-${index}`"
+          :name="channel"
+          :is-active="channel === currentChannel"
+          @activate="setActiveChannel"
+          @archive="archiveChannel"
+        />
+      </div>
+    </div>
+
+    <div class="d-flex flex-column w-75">
+      <div class="channel-header bg-light p-2 d-flex align-items-center">
+        <!-- Adicionado nome do canal ativo -->
+        #{{ currentChannel }}
+      </div>
+      <div class="channel-messages flex-grow-1 p-2" ref="channelMessages">
+        <loader/>
+      </div>
+      <!-- Adicionada referencia para o componente de formulario de nova mensagem -->
+      <message-form ref="messageForm"/>
+    </div>
+  </div>
+</template>
+
+<script>
+import AddChannel from '@/components/AddChannel'
+import Channel from '@/components/Channel'
+import Loader from '@/components/Loader'
+import MessageForm from '@/components/MessageForm'
+
+export default {
+  name: 'Chat',
+  components: {
+    AddChannel,
+    Channel,
+    Loader,
+    MessageForm
+  },
+  data () {
+    return {
+      channelsListRef: window.firebase.firestore().collection('channels'),
+      channels: [],
+      channelListener: () => {}
+    }
+  },
+  computed: {
+    currentUser () {
+      return this.$store.getters.currentUser
+    },
+    currentChannel () {
+      return this.$store.getters.currentChannel
+    }
+  },
+  methods: {
+    logout () {
+      window.firebase.auth().signOut()
+        .then(() => {
+          this.channelListener()
+          this.$store.dispatch('setCurrentUser', null)
+          this.$router.push('/login')
+        })
+        .catch(error => {
+          console.error(error.message)
+        })
+    },
+    // Método para definir o canal atual na store
+    setActiveChannel (channelName) {
+      this.$store.dispatch('setCurrentChannel', channelName)
+      this.$nextTick(() => {
+        this.$refs.messageForm.$el.querySelector('textarea').focus()
+      })
+    },
+    // Método para arquivar o canal no firebase
+    archiveChannel (channelName) {
+      if (this.currentChannel === channelName) {
+        this.setActiveChannel('todos')
+      }
+
+      window.firebase.firestore()
+        .collection('channels')
+        .doc(channelName)
+        .set({ archived: true }, { merge: true })
+    }
+  },
+  created () {
+    this.channelListener = this.channelsListRef
+      .where('archived', '==', false)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot((querySnapshot) => {
+        this.channels = querySnapshot.docs.map(doc => doc.id)
+      })
+    // Seta o canal todos ao acessar a aplicação
+    this.setActiveChannel('todos')
+  }
+}
+</script>
+
+<style lang="scss">
+$border-color: #c2c6ca;
+.sidebar {
+  border-right: 1px solid $border-color;
+}
+
+.current-user {
+  height: 75px;
+  font-size: 1.25rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.channels-list {
+  height: calc(100% - 75px);
+  overflow-y: auto;
+}
+
+.channel-header {
+  height: 75px;
+  font-size: 1.25rem;
+  border-bottom: 1px solid $border-color;
+}
+
+.channel-messages {
+  height: calc(100% - 125px);
+  overflow-y: auto;
+}
+
+.fade-enter-active {
+    animation: fade-in 300ms ease-out forwards;
+}
+
+.fade-leave-active {
+    animation: fade-out 300ms ease-out forwards;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+</style>
+```
+
+---
