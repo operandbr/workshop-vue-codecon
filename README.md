@@ -1,5 +1,9 @@
 # workshop-vue-codecon
 
+## Workshop criação de um chat com *Vue.js e Firebase* ministrado no Ágora Tech Park no dia 30/08/2019
+
+> Os passos para execução do projeto estão listados abaixo, o código fonte final está disponível neste repositório para comparação, porém é necessário ter o projeto do firebase configurado e alterar o arquivo de configuração no projeto localizado em `src/config/index.js`.
+
 ## **STEP 0** - *Criação do projeto*
 
 Durante o projeto irei utilizar o Visual Studio Code (vscode) Ferramenta para edição de códigos fonte desenvolvida pela Microsoft. 
